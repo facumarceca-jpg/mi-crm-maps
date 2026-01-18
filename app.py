@@ -91,7 +91,7 @@ def local_css():
     """, unsafe_allow_html=True)
 # ... [Keeping Constants and init_db same] ...
 # Constants
-RAW_FILE = 'google.csv'
+EXT_DATA = 'google.csv'
 DB_FILE = 'leads_db.csv'
 COLUMN_MAPPING = {
     'qBF1Pd': "Nombre del Local",
@@ -180,7 +180,8 @@ def init_db():
         "Priority": 0,
         "Website": "",
         "Horario": "",
-        "Dirección": ""
+        "Dirección": "",
+        "Tiene_Pedido": ""
     }
     for col, default in defaults.items():
         if col not in df.columns:
@@ -386,6 +387,7 @@ def main():
             rating = row.get('Rating', 0)
             hours = clean_encoding(clean_display_text(row.get('Horario'), "Horario no disponible"))
             web = clean_encoding(row.get("Website", ""))
+            fallback_web = row.get("URL", "") # Fallback to Maps link if Web is empty
             
             st.markdown(f"""
             <div class="black-text" style="background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #000000; margin: 10px 0;">
@@ -395,8 +397,10 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
-            if web and str(web) != "nan":
-                 st.link_button("🌐 VER WEB / PEDIDO", web, use_container_width=True)
+            if web and str(web) != "nan" and str(web).strip() != "":
+                 st.link_button("🌐 VER WEB / PEDIDO", web, use_container_width=True, type="primary")
+            elif fallback_web:
+                 st.link_button("🌐 VER EN GOOGLE MAPS", fallback_web, use_container_width=True)
 
             # Status & Management
             c1, c2 = st.columns(2)
