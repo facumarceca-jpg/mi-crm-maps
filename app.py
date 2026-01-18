@@ -16,14 +16,51 @@ def make_clickable_card(title, value, key):
 def local_css():
     st.markdown("""
         <style>
+        /* Modern UI Tweaks */
+        .stApp {
+            background-color: #f8f9fa;
+        }
         .stMetric {
-            background-color: #f0f2f6;
-            border: 1px solid #d6d9e0;
-            padding: 10px;
-            border-radius: 5px;
+            background-color: white;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         [data-testid="stMetricDelta"] svg {
             display: none;
+        }
+        /* Mobile Optimization */
+        @media (max-width: 640px) {
+            .stHeader {
+                padding: 0.5rem 1rem;
+            }
+            .stTab {
+                font-size: 14px;
+                padding: 8px 4px;
+            }
+            /* Make buttons bigger for fingers */
+            button[kind="primary"], button[kind="secondary"] {
+                min-height: 48px;
+            }
+            /* Reduce Map height on small screens to see profile below */
+            .element-container:has(#leads_layer) {
+                height: 350px !important;
+            }
+            /* Stack metrics and make them full width */
+            [data-testid="column"] {
+                width: 100% !important;
+                flex: none !important;
+            }
+        }
+        /* Card Styling */
+        .lead-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            border-left: 5px solid #ffaa00;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         </style>
     """, unsafe_allow_html=True)
@@ -318,11 +355,14 @@ def main():
                 if idx in df.index:
                     row = df.loc[idx]
                     
-                    # Sticky Header styling (Force White Text for Dark Background)
+                    # Mobile Close Button (Top)
+                    if st.button("⬅️ Ver Mapa completo", use_container_width=True, key="close_top"):
+                        st.session_state.selected_lead_idx = None
+                        st.rerun()
                     st.markdown(f"""
-                    <div style="background-color: #262730; padding: 15px; border-radius: 10px; border-left: 5px solid #ffaa00; margin-bottom: 20px;">
-                        <div style="margin:0; font-size: 1.5rem; font-weight: bold; color: #FFFFFF; font-family: sans-serif;">{row['Nombre del Local']}</div>
-                        <div style="color: #E0E0E0; margin-top: 5px;">{row.get('Categoría','Loc')}</div>
+                    <div class="lead-card">
+                        <div style="margin:0; font-size: 1.4rem; font-weight: bold; color: #1f2937;">{row['Nombre del Local']}</div>
+                        <div style="color: #6b7280; font-size: 0.9rem; margin-top: 2px;">{row.get('Categoría','Comercio')}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
