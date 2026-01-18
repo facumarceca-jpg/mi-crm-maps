@@ -16,55 +16,64 @@ def make_clickable_card(title, value, key):
 def local_css():
     st.markdown("""
         <style>
-        /* Mustard Yellow Background */
+        /* Red Theme Background */
         [data-testid="stAppViewRoot"], .stApp {
-            background-color: #FFD700 !important; /* Gold/Mustard */
-            color: #000000 !important;
+            background-color: #FF4B4B !important; /* Streamlit Red */
+            color: #ffffff !important;
         }
-        /* Force ALL text to be black */
-        h1, h2, h3, h4, p, span, label, div, button {
-            color: #000000 !important;
+        /* Style for headers and normal text to be white for contrast on red */
+        h1, h2, h3, h4, p, span, label, div {
+            color: #ffffff !important;
             font-weight: 500 !important;
         }
-        /* Fix the Blue Details Box (st.info) */
+        /* Buttons should be black or white for high contrast */
+        button[kind="primary"], button[kind="secondary"] {
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #ffffff !important;
+            min-height: 52px !important;
+        }
+        /* Notifications/Info boxes inside the red background */
         [data-testid="stNotification"] {
-            background-color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
             border: 2px solid #000000 !important;
             color: #000000 !important;
         }
-        /* Fix Metrics */
+        /* White text inside notifications needs to be black */
+        [data-testid="stNotification"] p, [data-testid="stNotification"] span {
+            color: #000000 !important;
+        }
+        /* Metrics */
         .stMetric {
             background-color: white !important;
             border: 2px solid #000000 !important;
             padding: 15px !important;
             border-radius: 12px !important;
         }
-        /* Tab styling */
-        .stTabs [data-baseweb="tab"] {
-            background-color: #ffffff !important;
+        .stMetric [data-testid="stMetricValue"], .stMetric [data-testid="stMetricLabel"] {
             color: #000000 !important;
-            border: 1px solid #000000 !important;
-            margin-right: 5px !important;
+        }
+        /* Tabs */
+        .stTabs [data-baseweb="tab"] {
+            background-color: rgba(0, 0, 0, 0.2) !important;
+            color: #ffffff !important;
             border-radius: 8px 8px 0 0 !important;
         }
-        /* Selected Tab */
         .stTabs [aria-selected="true"] {
-            background-color: #000000 !important;
-            color: #FFD700 !important;
+            background-color: #ffffff !important;
+            color: #FF4B4B !important;
         }
-        /* Mobile Optimization */
+        /* Mobile Layout */
         @media (max-width: 640px) {
-            .stMain {
-                padding: 0.5rem !important;
-            }
-            button[kind="primary"], button[kind="secondary"] {
-                min-height: 52px !important;
-                background-color: #000000 !important;
-                color: #ffffff !important;
-                border: none !important;
+            .stMain { padding: 0.5rem !important; }
+            [data-testid="stDeckGlChart"] { height: 380px !important; }
+            [data-testid="column"] {
+                width: 100% !important;
+                flex: none !important;
+                margin-bottom: 15px;
             }
         }
-        /* Card Styling */
+        /* Card for the profile with black text on white background */
         .lead-card {
             background: white !important;
             padding: 1rem !important;
@@ -72,6 +81,7 @@ def local_css():
             border: 2px solid #000000 !important;
             margin-bottom: 10px !important;
         }
+        .lead-card div { color: #000000 !important; }
         </style>
     """, unsafe_allow_html=True)
 # ... [Keeping Constants and init_db same] ...
