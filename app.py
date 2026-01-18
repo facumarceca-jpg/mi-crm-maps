@@ -21,10 +21,14 @@ def local_css():
             background-color: #FF4B4B !important; /* Streamlit Red */
             color: #ffffff !important;
         }
-        /* Style for headers and normal text to be white for contrast on red */
+        /* Force headings to be dark */
         h1, h2, h3, h4, p, span, label, div {
             color: #ffffff !important;
             font-weight: 500 !important;
+        }
+        /* SPECIFIC FIX FOR DARK TEXT ON WHITE CARDS */
+        .black-text, .black-text p, .black-text b, .black-text span {
+            color: #000000 !important;
         }
         /* Buttons should be black or white for high contrast */
         button[kind="primary"], button[kind="secondary"] {
@@ -154,6 +158,15 @@ def init_db():
         df["Sistema"] = "Sin Dato"
     if "Asignado_A" not in df.columns:
         df["Asignado_A"] = "Sin Asignar"
+    if "Website" not in df.columns:
+        df["Website"] = ""
+    if "URL" not in df.columns:
+        df["URL"] = ""
+    if "Dirección" not in df.columns:
+        df["Dirección"] = ""
+    if "Horario" not in df.columns:
+        df["Horario"] = ""
+        
     if "Rating" in df.columns:
         df["Rating"] = df["Rating"].astype(str).str.replace(',', '.', regex=False)
         df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0)
@@ -201,8 +214,9 @@ def main():
     # Helper for encoding fix
     def clean_encoding(text):
         if not isinstance(text, str): return text
+        if text.lower() == "nan": return ""
         # Fix common G-Maps scraper encoding issues
-        clean = text.replace('', '').replace('â', '').replace('Â', '').replace('?', ' ')
+        clean = text.replace('â', '').replace('Â', '').replace('?', ' ')
         return clean.strip()
 
     tab_zone, tab_manage = st.tabs(["📍 Zona de Trabajo", "📝 Gestión de Tablero"])
@@ -348,10 +362,10 @@ def main():
             addr = clean_encoding(clean_display_text(row.get('Dirección'), "Dirección no disponible"))
             rating = row.get('Rating', 0)
             hours = clean_encoding(clean_display_text(row.get('Horario'), "Horario no disponible"))
-            web = clean_encoding(row.get("Website", "")) # Apply encoding fix here
-
+            web = clean_encoding(row.get("Website", ""))
+            
             st.markdown(f"""
-            <div style="background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #000000; color: #000000; margin: 10px 0;">
+            <div class="black-text" style="background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #000000; margin: 10px 0;">
                 <p style="margin: 5px 0;">📍 <b>Dirección:</b> {addr}</p>
                 <p style="margin: 5px 0;">⭐ <b>Rating:</b> {rating}</p>
                 <p style="margin: 5px 0;">🕒 <b>Horario:</b> {hours}</p>
