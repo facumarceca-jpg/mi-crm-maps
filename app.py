@@ -27,8 +27,9 @@ def local_css():
             font-weight: 500 !important;
         }
         /* SPECIFIC FIX FOR DARK TEXT ON WHITE CARDS */
-        .black-text, .black-text p, .black-text b, .black-text span {
+        .black-text, .black-text p, .black-text b, .black-text span, .black-text div {
             color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important; /* Fix for some browsers override */
         }
         /* Buttons should be black or white for high contrast */
         button[kind="primary"], button[kind="secondary"] {
@@ -101,7 +102,8 @@ COLUMN_MAPPING = {
     'W4Efsd 6': "Horario",
     'ah5Ghc': "Reseña Destacada",
     'hfpxzc href': "URL",
-    'A1zNzb href': "Website"
+    'A1zNzb href': "Website",
+    'J8zHNe': "Tiene_Pedido"
 }
 
 STATUS_OPTIONS = ["Por Contactar", "Contactado", "Visitado", "Demo", "Cliente"]
@@ -122,58 +124,81 @@ def extract_coordinates(url):
     return None, None
 
 def init_db():
-    # ... Same as before ...
+    df = None
+    
+    # 1. Load Primary Database (leads_db.csv)
     if os.path.exists(DB_FILE):
-        df = pd.read_csv(DB_FILE)
-    elif os.path.exists(RAW_FILE):
         try:
-            df = pd.read_csv(RAW_FILE, encoding='latin-1') # Fallback encoding
-            df.dropna(how='all', inplace=True)
-            if 'qBF1Pd' in df.columns:
-                df = df[df['qBF1Pd'].notna()]
-            present_keys = [k for k in COLUMN_MAPPING.keys() if k in df.columns]
-            df = df[present_keys].copy()
-            df.rename(columns=COLUMN_MAPPING, inplace=True)
-            if "URL" in df.columns:
-                coords = df["URL"].apply(extract_coordinates)
-                df["latitude"] = coords.apply(lambda x: x[0])
-                df["longitude"] = coords.apply(lambda x: x[1])
-        except Exception:
-            return None
-    else:
-        return None
+            df = pd.read_csv(DB_FILE)
+        except Exception as e:
+            st.error(f"Error cargando base de datos: {e}")
 
-    # Maintenance: Ensure Columns Exist
-    if "Status" not in df.columns:
-        df["Status"] = "Por Contactar"
-    if "Notas" not in df.columns:
-        df["Notas"] = ""
-    if "Checklist" not in df.columns:
-        df["Checklist"] = "{}"
-    if "Interaction_Log" not in df.columns:
-        df["Interaction_Log"] = "[]"
-    if "Priority" not in df.columns:
-        df["Priority"] = 0
-    if "Sistema" not in df.columns:
-        df["Sistema"] = "Sin Dato"
-    if "Asignado_A" not in df.columns:
-        df["Asignado_A"] = "Sin Asignar"
-    if "Website" not in df.columns:
-        df["Website"] = ""
-    if "URL" not in df.columns:
-        df["URL"] = ""
-    if "Dirección" not in df.columns:
-        df["Dirección"] = ""
-    if "Horario" not in df.columns:
-        df["Horario"] = ""
-        
+    # 2. If no Primary DB, Load from Source (google.csv)
+    if df is None and os.path.exists(EXT_DATA):
+        try:
+            df = pd.read_csv(EXT_DATA, encoding='latin1')
+            df = df.rename(columns=COLUMN_MAPPING)
+        except Exception as e:
+            st.error(f"Error cargando datos de Google: {e}")
+            df = pd.DataFrame(columns=["Nombre del Local", "Status"])
+    elif df is None:
+        df = pd.DataFrame(columns=["Nombre del Local", "Status"])
+
+    # 3. SYNC METADATA: Fill missing/empty info from google.csv into current DB
+    if os.path.exists(EXT_DATA):
+        try:
+            raw_df = pd.read_csv(EXT_DATA, encoding='latin1').rename(columns=COLUMN_MAPPING)
+            for col in ["Website", "URL", "Horario", "Dirección", "Categoría", "Rating", "Tiene_Pedido"]:
+                if col not in df.columns:
+                    df[col] = ""
+                
+                # Update missing values
+                df_indexed = df.set_index("Nombre del Local")
+                source_indexed = raw_df[raw_df["Nombre del Local"].isin(df_indexed.index)].drop_duplicates("Nombre del Local").set_index("Nombre del Local")
+                
+                # Merge logic: if target is empty/nan, take from source
+                df_indexed[col] = df_indexed[col].fillna("").replace("nan", "").astype(str).str.strip()
+                mask = (df_indexed[col] == "") | (df_indexed[col] == "No especificado")
+                
+                # Only update where mask is true and source exists
+                common_indices = df_indexed.index[mask].intersection(source_indexed.index)
+                if not common_indices.empty:
+                    df_indexed.loc[common_indices, col] = source_indexed.loc[common_indices, col]
+                
+                df = df_indexed.reset_index()
+        except Exception as e:
+            st.warning(f"Sincronizando: {e}")
+
+    # 4. FIELD MAINTENANCE: Ensure all CRM columns exist
+    defaults = {
+        "Status": "Por Contactar",
+        "Sistema": "Sin Dato",
+        "Checklist": "{}",
+        "Interaction_Log": "[]",
+        "Asignado_A": "Sin Asignar",
+        "Notas": "",
+        "Priority": 0,
+        "Website": "",
+        "Horario": "",
+        "Dirección": ""
+    }
+    for col, default in defaults.items():
+        if col not in df.columns:
+            df[col] = default
+        df[col] = df[col].fillna(default)
+
+    # 5. DATA CLEANING & COORDINATES
     if "Rating" in df.columns:
         df["Rating"] = df["Rating"].astype(str).str.replace(',', '.', regex=False)
         df["Rating"] = pd.to_numeric(df["Rating"], errors='coerce').fillna(0)
 
-    # Type/Fill fixes
-    df["Status"] = df["Status"].fillna("Por Contactar").astype(str)
-    df["Notas"] = df["Notas"].fillna("").astype(str)
+    if "URL" in df.columns:
+        df["URL"] = df["URL"].fillna("").astype(str)
+        # Extract Lat/Lon from URL
+        coords = df["URL"].apply(extract_coordinates)
+        df["latitude"] = coords.apply(lambda x: x[0])
+        df["longitude"] = coords.apply(lambda x: x[1])
+
     df["Checklist"] = df["Checklist"].fillna("{}").astype(str)
     df["Interaction_Log"] = df["Interaction_Log"].fillna("[]").astype(str)
     
@@ -222,55 +247,53 @@ def main():
     tab_zone, tab_manage = st.tabs(["📍 Zona de Trabajo", "📝 Gestión de Tablero"])
 
     with tab_zone:
-        col_search, col_status = st.columns([2, 2])
-        with col_search:
-            zone_query = st.text_input("🏢 ¿En qué zona trabajarás hoy?", placeholder="Ej. Vicente Lopez, Palermo...")
-            if zone_query:
-                # Geocode
-                geolocator = Nominatim(user_agent="crm_agent")
-                try:
-                    # Append city/country for better context
-                    loc = geolocator.geocode(f"{zone_query}, Buenos Aires, Argentina")
-                    if loc:
-                        st.session_state.search_coords = (loc.latitude, loc.longitude)
-                        st.success(f"📍 Zona detectada: {loc.address}")
-                    else:
-                        st.session_state.search_coords = None
-                        st.warning("⚠️ Zona no encontrada, usando búsqueda textual.")
-                except Exception:
+        c1, c2, c3 = st.columns([2, 1, 1])
+        with c1:
+            zone_query = st.text_input("🏢 ¿En qué zona estás?", placeholder="Ej. Vicente Lopez, Palermo...")
+        with c2:
+            sel_status = st.multiselect("Estado", options=STATUS_OPTIONS, default=[])
+        with c3:
+            filter_online = st.toggle("🛒 Solo 'Pedir en línea'", value=False)
+
+        # Geocode if zone changed
+        if zone_query:
+            geolocator = Nominatim(user_agent="crm_agent")
+            try:
+                # Append city/country for better context
+                loc = geolocator.geocode(f"{zone_query}, Buenos Aires, Argentina")
+                if loc:
+                    st.session_state.search_coords = (loc.latitude, loc.longitude)
+                else:
                     st.session_state.search_coords = None
-                    
-        with col_status:
-            sel_status = st.multiselect("Filtro Rápido de Estado", options=STATUS_OPTIONS, default=[])
+            except Exception:
+                st.session_state.search_coords = None
 
         # Filter Logic
         df_view = df.copy()
         
-        # 1. Geo Filter (Radius 2km)
+        # 1. Geo Filter (Radius 2km) or Text Search
         if st.session_state.search_coords and "latitude" in df_view.columns:
             center = st.session_state.search_coords
-            
             def is_within_radius(row):
-                if pd.isna(row['latitude']) or pd.isna(row['longitude']):
-                    return False
+                if pd.isna(row['latitude']) or pd.isna(row['longitude']): return False
                 try:
                     point = (row['latitude'], row['longitude'])
-                    return geodesic(center, point).km <= 2.0 # 2km Radius
-                except:
-                    return False
-            
+                    return geodesic(center, point).km <= 2.0
+                except: return False
             df_view = df_view[df_view.apply(is_within_radius, axis=1)]
-            
         elif zone_query:
-            # Fallback to Text Search
             df_view = df_view[
                 df_view["Dirección"].str.contains(zone_query, case=False, na=False) | 
-                df_view["Nombre del Local"].str.contains(zone_query, case=False, na=False) |
-                df_view["URL"].str.contains(zone_query, case=False, na=False)
+                df_view["Nombre del Local"].str.contains(zone_query, case=False, na=False)
             ]
         
+        # 2. Status Filter
         if sel_status:
             df_view = df_view[df_view["Status"].isin(sel_status)]
+            
+        # 3. Order Online Filter
+        if filter_online:
+            df_view = df_view[df_view["Tiene_Pedido"].astype(str).str.contains("Pedir", case=False, na=False)]
 
         # Map / Profile Split
         idx = st.session_state.selected_lead_idx
