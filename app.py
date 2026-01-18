@@ -96,7 +96,8 @@ COLUMN_MAPPING = {
     'W4Efsd 4': "Dirección",
     'W4Efsd 6': "Horario",
     'ah5Ghc': "Reseña Destacada",
-    'hfpxzc href': "URL"
+    'hfpxzc href': "URL",
+    'A1zNzb href': "Website"
 }
 
 STATUS_OPTIONS = ["Por Contactar", "Contactado", "Visitado", "Demo", "Cliente"]
@@ -197,6 +198,13 @@ def main():
 
     st.title("🚀 Gamified CRM - Modo Campo")
 
+    # Helper for encoding fix
+    def clean_encoding(text):
+        if not isinstance(text, str): return text
+        # Fix common G-Maps scraper encoding issues
+        clean = text.replace('', '').replace('â', '').replace('Â', '').replace('?', ' ')
+        return clean.strip()
+
     tab_zone, tab_manage = st.tabs(["📍 Zona de Trabajo", "📝 Gestión de Tablero"])
 
     with tab_zone:
@@ -254,219 +262,167 @@ def main():
         idx = st.session_state.selected_lead_idx
         
         if idx is not None and idx in df.index:
-            col_map, col_profile = st.columns([2, 1])
+            col_map, col_profile = st.columns([1, 1]) # 1:1 for better mobile stacking
         else:
             col_map = st.container()
             col_profile = None
 
-        with col_map:
-            st.subheader(f"🗺️ Mapa ({len(df_view)} Locales)")
-            if "latitude" in df_view.columns and not df_view.empty:
-                map_data = df_view.dropna(subset=["latitude", "longitude"]).copy()
-                if not map_data.empty:
-                    map_data["color"] = map_data["Status"].apply(get_status_color)
-                    map_data['orig_index'] = map_data.index 
-                    
-                    # Highlight Radius if searching
-                    layers = []
-                    
-                    # Points Layer
-                    layers.append(pdk.Layer(
-                        "ScatterplotLayer",
-                        map_data,
-                        get_position='[longitude, latitude]',
-                        get_color='color',
-                        get_radius=150,
-                        pickable=True,
-                        auto_highlight=True,
-                        id="leads_layer"
-                    ))
+        # ON MOBILE: If selected, show profile FIRST
+        if idx is not None and idx in df.index:
+             # This is a bit of a hack to ensure profile is seen first on mobile
+             # But on Desktop it will be side by side
+             pass
 
-                    # View State
-                    if idx is not None and idx in map_data.index:
-                        lat = map_data.at[idx, "latitude"]
-                        lon = map_data.at[idx, "longitude"]
-                        zoom = 15
-                    elif st.session_state.search_coords:
-                        lat, lon = st.session_state.search_coords
-                        zoom = 13
-                    else:
-                        lat = map_data["latitude"].mean()
-                        lon = map_data["longitude"].mean()
-                        zoom = 12
+        # 1. MAP SECTION (Always Top)
+        st.subheader(f"🗺️ Mapa ({len(df_view)} Locales)")
+        if "latitude" in df_view.columns and not df_view.empty:
+            map_data = df_view.dropna(subset=["latitude", "longitude"]).copy()
+            if not map_data.empty:
+                map_data["color"] = map_data["Status"].apply(get_status_color)
+                map_data['orig_index'] = map_data.index 
+                
+                # Highlight Radius if searching
+                layers = [pdk.Layer(
+                    "ScatterplotLayer",
+                    map_data,
+                    get_position='[longitude, latitude]',
+                    get_color='color',
+                    get_radius=150,
+                    pickable=True,
+                    auto_highlight=True,
+                    id="leads_layer"
+                )]
 
-                    view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=zoom, pitch=40)
-                    
-                    event = st.pydeck_chart(pdk.Deck(
-                        layers=layers,
-                        initial_view_state=view_state,
-                        tooltip={"html": "<b>{Nombre del Local}</b><br/>{Status}"},
-                        map_style=None
-                    ), on_select="rerun", selection_mode="single-object", use_container_width=True)
-                    
-                    # Click Handler logic
-                    # Debug output
-                    with st.expander("🔧 Debug Mapa (Datos de Selección)", expanded=False):
-                        st.write("Estado de Selección:", event.selection)
-
-                    if event.selection:
-                        # Parsing logic based on debug observation
-                        # Structure: {'indices': {'leads_layer': [13]}, 'objects': {'leads_layer': [{'orig_index': 13...}]}}
-                        
-                        # Try getting objects dict
-                        objects_dict = event.selection.get("objects")
-                        if objects_dict:
-                            # It's a dict of layer_name -> list of objects
-                            leads_objects = objects_dict.get("leads_layer", [])
-                            if leads_objects:
-                                selected_idx = leads_objects[0].get("orig_index")
-                                if selected_idx is not None and selected_idx != st.session_state.selected_lead_idx:
-                                    st.session_state.selected_lead_idx = selected_idx
-                                    st.toast(f"📍 Lead seleccionado: ID {selected_idx}")
-                                    st.rerun()
-                        
-                        # Fallback/Alternative structure check (just in case)
-                        elif "leads_layer" in event.selection:
-                             payload = event.selection.get("leads_layer")
-                             # If payload is dict with objects...
-                             if isinstance(payload, dict):
-                                 objects = payload.get("objects", [])
-                                 if objects:
-                                     selected_idx = objects[0].get("orig_index")
-                                     if selected_idx is not None and selected_idx != st.session_state.selected_lead_idx:
-                                         st.session_state.selected_lead_idx = selected_idx
-                                         st.rerun()
-
+                # View State logic
+                if idx is not None and idx in map_data.index:
+                    lat, lon, zoom = map_data.at[idx, "latitude"], map_data.at[idx, "longitude"], 15
+                elif st.session_state.search_coords:
+                    lat, lon, zoom = st.session_state.search_coords[0], st.session_state.search_coords[1], 13
                 else:
-                    st.info("Sin locales en esta zona.")
-            else:
-                st.warning("No hay datos geolocalizados.") 
-            
-            # Fallback List (Interactive)
-            st.divider()
-            st.caption("👇 O selecciona de la lista:")
-            event_list = st.dataframe(
-                df_view[["Nombre del Local", "Status", "Dirección"]],
-                use_container_width=True,
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row"
-            )
-            # Handle List Selection
-            if event_list.selection and event_list.selection.rows:
-                # Map row index to df index
-                row_idx = event_list.selection.rows[0]
-                real_idx = df_view.index[row_idx]
-                if real_idx != st.session_state.selected_lead_idx:
-                     st.session_state.selected_lead_idx = real_idx
-                     st.rerun()
+                    lat, lon, zoom = map_data["latitude"].mean(), map_data["longitude"].mean(), 12
 
-            # Metrics
+                event = st.pydeck_chart(pdk.Deck(
+                    layers=layers,
+                    initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=zoom, pitch=40),
+                    tooltip={"html": "<b>{Nombre del Local}</b><br/>{Status}"},
+                    map_style=None
+                ), on_select="rerun", selection_mode="single-object", use_container_width=True)
+                
+                if event.selection:
+                    objects_dict = event.selection.get("objects")
+                    if objects_dict:
+                        leads_objects = objects_dict.get("leads_layer", [])
+                        if leads_objects:
+                            selected_idx = leads_objects[0].get("orig_index")
+                            if selected_idx is not None and selected_idx != st.session_state.selected_lead_idx:
+                                st.session_state.selected_lead_idx = selected_idx
+                                st.rerun()
+
+        # 2. PROFILE SECTION (Appears here if selected, directly below map)
+        if idx is not None and idx in df.index:
+            row = df.loc[idx]
             st.markdown("---")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Total Zona", len(df_view))
-            m2.metric("Clientes", len(df_view[df_view["Status"]=="Cliente"]))
-            m3.metric("Pendientes", len(df_view[df_view["Status"]=="Por Contactar"]))
+            
+            # Mobile Close Button (Top)
+            if st.button("⬅️ Ver Mapa completo", use_container_width=True, key="close_top"):
+                st.session_state.selected_lead_idx = None
+                st.rerun()
 
-        # 3. Side Profile (Content)
-        if col_profile:
-            with col_profile:
-                 # Ensure index valid
-                if idx in df.index:
-                    row = df.loc[idx]
-                    
-                    # Mobile Close Button (Top)
-                    if st.button("⬅️ Ver Mapa completo", use_container_width=True, key="close_top"):
-                        st.session_state.selected_lead_idx = None
-                        st.rerun()
-                    st.markdown(f"""
-                    <div class="lead-card">
-                        <div style="margin:0; font-size: 1.4rem; font-weight: bold; color: #1f2937;">{row['Nombre del Local']}</div>
-                        <div style="color: #6b7280; font-size: 0.9rem; margin-top: 2px;">{row.get('Categoría','Comercio')}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="lead-card">
+                <div style="margin:0; font-size: 1.4rem; font-weight: bold; color: #1f2937;">{row['Nombre del Local']}</div>
+                <div style="color: #6b7280; font-size: 0.9rem; margin-top: 2px;">{row.get('Categoría','Comercio')}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-                    # Action Button
-                    if row.get("URL"):
-                        st.link_button("🗺️ CÓMO LLEGAR (Google Maps)", row["URL"], type="primary", use_container_width=True)
-                    
-                    st.divider()
+            if row.get("URL"):
+                st.link_button("🗺️ CÓMO LLEGAR (Google Maps)", row["URL"], type="primary", use_container_width=True)
+            
+            # Helper for display
+            def clean_display_text(val, default="No especificado"):
+                if pd.isna(val) or str(val).lower() == "nan" or str(val).strip() == "":
+                    return default
+                return val
 
-                    # Status
-                    st.caption("ESTADO ACTUAL")
-                    curr_status = row["Status"]
-                    new_st = st.selectbox("Status", STATUS_OPTIONS, index=STATUS_OPTIONS.index(curr_status) if curr_status in STATUS_OPTIONS else 0, key=f"st_{idx}", label_visibility="collapsed")
-                    if new_st != curr_status:
-                         df.at[idx, "Status"] = new_st
-                         save_db(df)
-                         st.toast("Guardado!")
-                         st.rerun()
+            # Details Box
+            addr = clean_encoding(clean_display_text(row.get('Dirección'), "Dirección no disponible"))
+            rating = row.get('Rating', 0)
+            hours = clean_encoding(clean_display_text(row.get('Horario'), "Horario no disponible"))
+            web = clean_encoding(row.get("Website", "")) # Apply encoding fix here
 
+            st.markdown(f"""
+            <div style="background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #000000; color: #000000; margin: 10px 0;">
+                <p style="margin: 5px 0;">📍 <b>Dirección:</b> {addr}</p>
+                <p style="margin: 5px 0;">⭐ <b>Rating:</b> {rating}</p>
+                <p style="margin: 5px 0;">🕒 <b>Horario:</b> {hours}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if web and str(web) != "nan":
+                 st.link_button("🌐 VER WEB / PEDIDO", web, use_container_width=True)
 
-                    # Helper for display
-                    def clean_display_text(val, default="No especificado"):
-                        if pd.isna(val) or str(val).lower() == "nan" or str(val).strip() == "":
-                            return default
-                        return val
+            # Status & Management
+            c1, c2 = st.columns(2)
+            curr_status = row["Status"]
+            new_st = c1.selectbox("Estado", STATUS_OPTIONS, index=STATUS_OPTIONS.index(curr_status) if curr_status in STATUS_OPTIONS else 0, key=f"st_{idx}")
+            
+            curr_sys = row.get("Sistema", "Sin Dato")
+            new_sys = c2.selectbox("Sistema", SYSTEM_OPTIONS, index=SYSTEM_OPTIONS.index(curr_sys) if curr_sys in SYSTEM_OPTIONS else 0, key=f"sys_{idx}")
+            
+            if new_st != curr_status or new_sys != curr_sys:
+                 df.at[idx, "Status"] = new_st
+                 df.at[idx, "Sistema"] = new_sys
+                 save_db(df)
+                 st.rerun()
 
-                    # Info
-                    st.caption("DETALLES")
-                    addr = clean_display_text(row.get('Dirección'), "Dirección no disponible")
-                    rating = row.get('Rating', 0)
-                    hours = clean_display_text(row.get('Horario'), "Horario no disponible")
-                    
-                    st.info(f"📍 {addr}\n\n⭐ Rating: {rating}\n\n🕒 {hours}")
-                    
-                    # Extra Fields (System & Vendor)
-                    st.caption("DATOS DEL LOCAL")
-                    c_sys, c_vend = st.columns(2)
-                    
-                    curr_sys = row.get("Sistema", "Sin Dato")
-                    new_sys = c_sys.selectbox("Sistema", SYSTEM_OPTIONS, index=SYSTEM_OPTIONS.index(curr_sys) if curr_sys in SYSTEM_OPTIONS else 0, key=f"sys_{idx}")
-                    
-                    curr_vend = row.get("Asignado_A", "Sin Asignar")
-                    new_vend = c_vend.selectbox("Asignado", VENDOR_OPTIONS, index=VENDOR_OPTIONS.index(curr_vend) if curr_vend in VENDOR_OPTIONS else 0, key=f"vend_{idx}")
-                    
-                    if new_sys != curr_sys or new_vend != curr_vend:
-                        df.at[idx, "Sistema"] = new_sys
-                        df.at[idx, "Asignado_A"] = new_vend
-                        save_db(df)
-                        st.toast("Datos actualizados")
-                        st.rerun()
+            # Checklist
+            with st.expander("✅ Checklist de Visita", expanded=False):
+                checklist_data = json.loads(row.get("Checklist", "{}"))
+                updated_cl = {}
+                changed = False
+                for item in CHECKLIST_ITEMS:
+                    val = st.checkbox(item, value=checklist_data.get(item, False), key=f"chk_{idx}_{item}")
+                    updated_cl[item] = val
+                    if val != checklist_data.get(item, False):
+                        changed = True
+                if changed:
+                    df.at[idx, "Checklist"] = json.dumps(updated_cl)
+                    save_db(df)
 
-                    # Checklist
-                    with st.expander("✅ Checklist de Visita", expanded=True):
-                        checklist_data = json.loads(row.get("Checklist", "{}"))
-                        updated_cl = {}
-                        changed = False
-                        for item in CHECKLIST_ITEMS:
-                            val = st.checkbox(item, value=checklist_data.get(item, False), key=f"chk_{idx}_{item}")
-                            updated_cl[item] = val
-                            if val != checklist_data.get(item, False):
-                                changed = True
-                        if changed:
-                            df.at[idx, "Checklist"] = json.dumps(updated_cl)
-                            save_db(df)
+            # Logs/Notes
+            with st.expander("💬 Notas / Bitácora", expanded=False):
+                logs = json.loads(row.get("Interaction_Log", "[]"))
+                txt = st.text_input("Agregar nota...", key=f"note_{idx}")
+                if st.button("Guardar Nota", key=f"btn_{idx}") and txt:
+                    logs.insert(0, {"user": "Yo", "date": datetime.now().strftime("%H:%M"), "note": txt})
+                    df.at[idx, "Interaction_Log"] = json.dumps(logs)
+                    save_db(df)
+                    st.rerun()
+                for l in logs[:3]:
+                    st.caption(f"{l['date']} - {l['note']}")
 
-                    # Logs
-                    with st.expander("💬 Notas / Bitácora", expanded=False):
-                        logs = json.loads(row.get("Interaction_Log", "[]"))
-                        
-                        # Add Note
-                        txt = st.text_input("Agregar nota rápida...", key=f"note_{idx}")
-                        if st.button("Enviar", key=f"btn_{idx}") and txt:
-                            logs.insert(0, {"user": "Yo", "date": datetime.now().strftime("%H:%M"), "note": txt})
-                            df.at[idx, "Interaction_Log"] = json.dumps(logs)
-                            save_db(df)
-                            st.rerun()
-                        
-                        # List
-                        for l in logs[:3]: # Show last 3
-                            st.caption(f"{l['date']} - {l['note']}")
+        # 3. LIST & METRICS (Bottom)
+        st.divider()
+        st.caption("👇 Lista de Locales:")
+        event_list = st.dataframe(
+            df_view[["Nombre del Local", "Status", "Dirección"]],
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
+        if event_list.selection and event_list.selection.rows:
+            row_idx = event_list.selection.rows[0]
+            real_idx = df_view.index[row_idx]
+            if real_idx != st.session_state.selected_lead_idx:
+                 st.session_state.selected_lead_idx = real_idx
+                 st.rerun()
 
-                    if st.button("❌ Cerrar Perfil", use_container_width=True):
-                        st.session_state.selected_lead_idx = None
-                        st.rerun()
+        st.markdown("---")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Zona", len(df_view))
+        m2.metric("Clientes", len(df_view[df_view["Status"]=="Cliente"]))
+        m3.metric("Pendientes", len(df_view[df_view["Status"]=="Por Contactar"]))
 
     # --- TAB 2: GESTIÓN DE TABLERO ---
     with tab_manage:
