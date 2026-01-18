@@ -17,40 +17,58 @@ def local_css():
     st.markdown("""
         <style>
         /* Modern UI Tweaks */
-        .stApp {
+        [data-testid="stAppViewRoot"] {
             background-color: #f8f9fa;
+            color: #1f2937;
+        }
+        /* Force headings to be dark */
+        h1, h2, h3, h4, p, span, label {
+            color: #1f2937 !important;
         }
         .stMetric {
             background-color: white;
             border: 1px solid #e9ecef;
-            padding: 15px;
+            padding: 15px !important;
             border-radius: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         [data-testid="stMetricDelta"] svg {
             display: none;
         }
+        /* Fix Tabs for Mobile */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #ffffff;
+            border-radius: 8px 8px 0 0;
+            padding: 10px 15px;
+            color: #4b5563 !important;
+        }
         /* Mobile Optimization */
         @media (max-width: 640px) {
-            .stHeader {
-                padding: 0.5rem 1rem;
+            .stMain {
+                padding: 0.5rem !important;
             }
-            .stTab {
-                font-size: 14px;
-                padding: 8px 4px;
+            .stTitle {
+                font-size: 1.8rem !important;
+                padding-bottom: 1rem;
+            }
+            /* Make inputs bigger */
+            .stTextInput input {
+                height: 50px;
             }
             /* Make buttons bigger for fingers */
             button[kind="primary"], button[kind="secondary"] {
-                min-height: 48px;
+                min-height: 52px !important;
             }
-            /* Reduce Map height on small screens to see profile below */
-            .element-container:has(#leads_layer) {
-                height: 350px !important;
-            }
-            /* Stack metrics and make them full width */
+            /* Stack columns */
             [data-testid="column"] {
                 width: 100% !important;
                 flex: none !important;
+                margin-bottom: 15px;
             }
         }
         /* Card Styling */
