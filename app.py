@@ -16,69 +16,61 @@ def make_clickable_card(title, value, key):
 def local_css():
     st.markdown("""
         <style>
-        /* Modern UI Tweaks */
-        [data-testid="stAppViewRoot"] {
-            background-color: #f8f9fa;
-            color: #1f2937;
+        /* Mustard Yellow Background */
+        [data-testid="stAppViewRoot"], .stApp {
+            background-color: #FFD700 !important; /* Gold/Mustard */
+            color: #000000 !important;
         }
-        /* Force headings to be dark */
-        h1, h2, h3, h4, p, span, label {
-            color: #1f2937 !important;
+        /* Force ALL text to be black */
+        h1, h2, h3, h4, p, span, label, div, button {
+            color: #000000 !important;
+            font-weight: 500 !important;
         }
+        /* Fix the Blue Details Box (st.info) */
+        [data-testid="stNotification"] {
+            background-color: #ffffff !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+        }
+        /* Fix Metrics */
         .stMetric {
-            background-color: white;
-            border: 1px solid #e9ecef;
+            background-color: white !important;
+            border: 2px solid #000000 !important;
             padding: 15px !important;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-radius: 12px !important;
         }
-        [data-testid="stMetricDelta"] svg {
-            display: none;
-        }
-        /* Fix Tabs for Mobile */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 10px;
-        }
+        /* Tab styling */
         .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            white-space: pre-wrap;
-            background-color: #ffffff;
-            border-radius: 8px 8px 0 0;
-            padding: 10px 15px;
-            color: #4b5563 !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border: 1px solid #000000 !important;
+            margin-right: 5px !important;
+            border-radius: 8px 8px 0 0 !important;
+        }
+        /* Selected Tab */
+        .stTabs [aria-selected="true"] {
+            background-color: #000000 !important;
+            color: #FFD700 !important;
         }
         /* Mobile Optimization */
         @media (max-width: 640px) {
             .stMain {
                 padding: 0.5rem !important;
             }
-            .stTitle {
-                font-size: 1.8rem !important;
-                padding-bottom: 1rem;
-            }
-            /* Make inputs bigger */
-            .stTextInput input {
-                height: 50px;
-            }
-            /* Make buttons bigger for fingers */
             button[kind="primary"], button[kind="secondary"] {
                 min-height: 52px !important;
-            }
-            /* Stack columns */
-            [data-testid="column"] {
-                width: 100% !important;
-                flex: none !important;
-                margin-bottom: 15px;
+                background-color: #000000 !important;
+                color: #ffffff !important;
+                border: none !important;
             }
         }
         /* Card Styling */
         .lead-card {
-            background: white;
-            padding: 1rem;
-            border-radius: 10px;
-            border-left: 5px solid #ffaa00;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: white !important;
+            padding: 1rem !important;
+            border-radius: 10px !important;
+            border: 2px solid #000000 !important;
+            margin-bottom: 10px !important;
         }
         </style>
     """, unsafe_allow_html=True)
